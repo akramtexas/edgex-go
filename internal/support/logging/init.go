@@ -110,12 +110,13 @@ func connectToConsul(conf *ConfigurationStruct) error {
 
 	if err != nil {
 		return fmt.Errorf("connection to Consul could not be made: %v", err.Error())
-	} else {
-		// Update configuration data from Consul
-		if err := consulclient.CheckKeyValuePairs(conf, internal.SupportLoggingServiceKey, strings.Split(conf.ConsulProfilesActive, ";")); err != nil {
-			return fmt.Errorf("error getting key/values from Consul: %v", err.Error())
-		}
 	}
+	
+	// Update configuration data from Consul
+	if err := consulclient.CheckKeyValuePairs(conf, internal.SupportLoggingServiceKey, strings.Split(conf.ConsulProfilesActive, ";")); err != nil {
+		return fmt.Errorf("error getting key/values from Consul: %v", err.Error())
+	}
+	
 	return nil
 }
 

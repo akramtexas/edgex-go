@@ -11,18 +11,17 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  *******************************************************************************/
-package main
 
-import (
-	"fmt"
-	"os"
-	"os/exec"
+package executor
 
-	"github.com/edgexfoundry/edgex-go/internal/system/executor"
-)
+func failure(errorMessage string) string {
+	return "\"success\":false,\"errorMessage\":\"" + errorMessage + "\""
+}
 
-func main() {
-	fmt.Print(executor.Execute(os.Args, func(arg ...string) ([]byte, error) {
-		return exec.Command("docker", arg...).CombinedOutput()
-	}))
+func success() string {
+	return "\"success\":true"
+}
+
+func createResult(operation string, service string, result string) string {
+	return "{\"operation\":\"" + operation + "\",\"service\":\"" + service + "\"," + result + "}"
 }

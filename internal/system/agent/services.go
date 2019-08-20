@@ -353,9 +353,8 @@ func getHealth(services []string) (map[string]interface{}, error) {
 	return health, nil
 }
 
-func IsKnownServiceKey(serviceKey string) bool {
-	// create a map because this is the easiest/cleanest way to determine whether something exists in a set
-	var services = map[string]struct{}{
+func KnownServices() map[string]struct{} {
+	return map[string]struct{}{
 		clients.SupportNotificationsServiceKey: {},
 		clients.CoreCommandServiceKey:          {},
 		clients.CoreDataServiceKey:             {},
@@ -366,8 +365,9 @@ func IsKnownServiceKey(serviceKey string) bool {
 		clients.SupportSchedulerServiceKey:     {},
 		clients.ConfigSeedServiceKey:           {},
 	}
+}
 
-	_, exists := services[serviceKey]
-
+func IsKnownServiceKey(serviceKey string) bool {
+	_, exists := KnownServices()[serviceKey]
 	return exists
 }

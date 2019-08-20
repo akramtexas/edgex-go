@@ -16,16 +16,17 @@ package executor
 
 import (
 	"errors"
-	"os/exec"
+	"github.com/edgexfoundry/edgex-go/internal/system/agent"
 	"testing"
 
-	"github.com/edgexfoundry/go-mod-core-contracts/clients"
 	"github.com/stretchr/testify/assert"
 )
 
 const (
-	serviceName  = "serviceName"
-	errorMessage = "errorMessage"
+	executableName       = "executableName"
+	errorMessage         = "errorMessage"
+	invalidOperation     = "invalidOperation"
+	metricsSuccessResult = "metricsSuccessResult"
 )
 
 type executorStubCall struct {
@@ -59,169 +60,243 @@ func assertArgsAreEqual(t *testing.T, expected []string, actual []string) {
 	}
 }
 
-func TestExecute(t *testing.T) {
-	tests := []struct {
-		name                  string
-		operation             string
-		expectedResult        []byte
-		expectedErrorMessage  string
-		expectedExecutorCalls int
-		executorCalls         []executorStubCall
-	}{
-		{
-			"Start: first call to executor fails",
-			START,
-			[]byte(nil),
-			executorCommandFailedMessage(FAILED_START_PREFIX, string([]byte(nil)), errorMessage),
-			1,
-			[]executorStubCall{
-				{[]string{START, serviceName}, []byte(nil), errors.New(errorMessage)},
-			},
-		},
-		{
-			"Start: second call to executor fails",
-			START,
-			[]byte(nil),
-			executorInspectFailedMessage(FAILED_START_PREFIX, errorMessage),
-			2,
-			[]executorStubCall{
-				{[]string{START, serviceName}, []byte(nil), nil},
-				{[]string{INSPECT, serviceName}, []byte(nil), errors.New(errorMessage)},
-			},
-		},
-		{
-			"Start: container not found in inspect result",
-			START,
-			[]byte(nil),
-			executorInspectFailedMessage(FAILED_START_PREFIX, containerNotFoundMessage(serviceName)),
-			2,
-			[]executorStubCall{
-				{[]string{START, serviceName}, []byte(nil), nil},
-				{[]string{INSPECT, serviceName}, []byte("[]"), nil},
-			},
-		},
-		{
-			"Start: more than one container instance found in inspect result",
-			START,
-			[]byte(nil),
-			executorInspectFailedMessage(FAILED_START_PREFIX, moreThanOneContainerFoundMessage(serviceName)),
-			2,
-			[]executorStubCall{
-				{[]string{START, serviceName}, []byte(nil), nil},
-				{[]string{INSPECT, serviceName}, []byte("[{\"State\": {\"Running\": false}}, {\"State\": {\"Running\": false}}]"), nil},
-			},
-		},
-		{
-			"Start: inspect result says service is not running as expected",
-			START,
-			[]byte(nil),
-			serviceIsNotRunningButShouldBeMessage(FAILED_START_PREFIX),
-			2,
-			[]executorStubCall{
-				{[]string{START, serviceName}, []byte(nil), nil},
-				{[]string{INSPECT, serviceName}, []byte("[{\"State\": {\"Running\": false}}]"), nil},
-			},
-		},
-		{
-			"Restart: first call to executor fails",
-			RESTART,
-			[]byte(nil),
-			executorCommandFailedMessage(FAILED_RESTART_PREFIX, string([]byte(nil)), errorMessage),
-			1,
-			[]executorStubCall{
-				{[]string{RESTART, serviceName}, []byte(nil), errors.New(errorMessage)},
-			},
-		},
-		{
-			"Stop: first call to executor fails",
-			STOP,
-			[]byte(nil),
-			executorCommandFailedMessage(FAILED_STOP_PREFIX, string([]byte(nil)), errorMessage),
-			1,
-			[]executorStubCall{
-				{[]string{STOP, serviceName}, []byte(nil), errors.New(errorMessage)},
-			},
-		},
-		{
-			"Stop: service is running but shouldn't be",
-			STOP,
-			[]byte(nil),
-			serviceIsRunningButShouldNotBeMessage(FAILED_STOP_PREFIX),
-			2,
-			[]executorStubCall{
-				{[]string{STOP, serviceName}, []byte(nil), nil},
-				{[]string{INSPECT, serviceName}, []byte("[{\"State\": {\"Running\": true}}]"), nil},
-			},
-		}, {
-			"Start: no errors encountered in checking for container status",
-			STOP,
-			[]byte(nil),
-			serviceIsRunningButShouldNotBeMessage(FAILED_STOP_PREFIX),
-			2,
-			[]executorStubCall{
-				{[]string{STOP, serviceName}, []byte(nil), nil},
-				{[]string{INSPECT, serviceName}, []byte("[{\"State\": {\"Running\": true}}]"), nil},
-			},
-		},
-		{
-			"Start: no errors encountered in checking for container status",
-			START,
-			nil,
-			executorInspectFailedMessage(FAILED_START_PREFIX, "EOF"),
-			2,
-			[]executorStubCall{
-				{[]string{START, serviceName}, []byte(nil), nil},
-				{[]string{INSPECT, serviceName}, []byte(nil), nil},
-			},
-		},
-		{
-			"operation not supported with specified executor",
-			UNKNOWN,
-			[]byte(nil),
-			executorCommandNotSupportedMessage(),
-			0,
-			nil,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			executor := newExecutor(test.executorCalls)
-
-			result, err := Execute(test.operation, serviceName, executor.commandExecutor)
-
-			assert.Equal(t, test.expectedExecutorCalls, executor.Called)
-			for key, executorCall := range test.executorCalls {
-				assertArgsAreEqual(t, executorCall.expectedArgs, executor.capturedArgs[key])
-			}
-
-			assert.Equal(t, test.expectedResult, result)
-			assert.NotNil(t, err)
-			assert.Equal(t, test.expectedErrorMessage, err.Error())
-		})
+func firstCommandCallFails(serviceName string, operation string) []executorStubCall {
+	return []executorStubCall{
+		{[]string{serviceName, operation}, []byte(nil), errors.New(errorMessage)},
 	}
 }
 
-func TestExecuteMetrics(t *testing.T) {
+func secondCommandCallFails(serviceName string, operation string) []executorStubCall {
+	return []executorStubCall{
+		{[]string{serviceName, operation}, []byte(nil), nil},
+		{[]string{serviceName, inspect}, []byte(nil), errors.New(errorMessage)},
+	}
+}
 
-	result, _ := Execute(METRICS, clients.CoreDataServiceKey, func(arg ...string) ([]byte, error) {
-		return exec.Command("docker", "stats", clients.CoreDataServiceKey, "--no-stream", "--format", "{\"cpu_perc\":\"{{ .CPUPerc }}\",\"mem_usage\":\"{{ .MemUsage }}\",\"mem_perc\":\"{{ .MemPerc }}\",\"net_io\":\"{{ .NetIO }}\",\"block_io\":\"{{ .BlockIO }}\",\"pids\":\"{{ .PIDs }}\"}").CombinedOutput()
-	})
+func secondCommandCallSucceeds(serviceName string, operation string, result string) []executorStubCall {
+	return []executorStubCall{
+		{[]string{serviceName, operation}, []byte(nil), nil},
+		{[]string{serviceName, inspect}, []byte(result), nil},
+	}
+}
 
-	var s string
-	s = string(result)
-	assert.NotNil(t, s)
+func firstMetricsCallFails(serviceName string, operation string) []executorStubCall {
+	return []executorStubCall{
+		{metricsExecutorCommands(serviceName), []byte(nil), errors.New(errorMessage)},
+	}
+}
 
-	//	 TODO: Future direction will be to mock out the call to Docker stats.
-	// Validate that all expected keys are present in the "JSON-like" response
-	/*
-		kvp := agent.ProcessResponse(s)
+func firstMetricsCallSucceeds(serviceName string, operation string, result string) []executorStubCall {
+	return []executorStubCall{
+		{metricsExecutorCommands(serviceName), []byte(result), nil},
+	}
+}
 
-		assert.NotNil(t, kvp["cpu_perc"])
-		assert.NotNil(t, kvp["mem_usage"])
-		assert.NotNil(t, kvp["mem_perc"])
-		assert.NotNil(t, kvp["net_io"])
-		assert.NotNil(t, kvp["block_io"])
-		assert.NotNil(t, kvp["pids"])
-	*/
+func executeArguments(serviceName string, operation string) []string {
+	return []string{executableName, serviceName, operation}
+}
+
+func TestExecute(t *testing.T) {
+	for serviceName := range agent.KnownServices() {
+		tests := []struct {
+			name           string
+			operation      string
+			expectedResult string
+			executorCalls  []executorStubCall
+		}{
+			// start command test cases
+
+			{
+				"Start: first executor call fails",
+				start,
+				createResult(start, serviceName, failure(messageExecutorCommandFailed(failedStartPrefix, string([]byte(nil)), errorMessage))),
+				firstCommandCallFails(serviceName, start),
+			},
+			{
+				"Start: second executor call fails",
+				start,
+				createResult(start, serviceName, failure(messageExecutorInspectFailed(failedStartPrefix, errorMessage))),
+				secondCommandCallFails(serviceName, start),
+			},
+			{
+				"Start: container not found in inspect result",
+				start,
+				createResult(start, serviceName, failure(messageExecutorInspectFailed(failedStartPrefix, messageContainerNotFound(serviceName)))),
+				secondCommandCallSucceeds(serviceName, start, "[]"),
+			},
+			{
+				"Start: more than one container instance found in inspect result",
+				start,
+				createResult(start, serviceName, failure(messageExecutorInspectFailed(failedStartPrefix, messageMoreThanOneContainerFound(serviceName)))),
+				secondCommandCallSucceeds(serviceName, start, "[{\"State\": {\"Running\": false}}, {\"State\": {\"Running\": false}}]"),
+			},
+			{
+				"Start: inspect result says service is not running as expected",
+				start,
+				createResult(start, serviceName, failure(messageServiceIsNotRunningButShouldBe(failedStartPrefix))),
+				secondCommandCallSucceeds(serviceName, start, "[{\"State\": {\"Running\": false}}]"),
+			},
+			{
+				"Start: isContainerRunning json.Decode failure",
+				start,
+				createResult(start, serviceName, failure(messageExecutorInspectFailed(failedStartPrefix, "EOF"))),
+				secondCommandCallSucceeds(serviceName, start, ""),
+			},
+			{
+				"Start: success",
+				start,
+				createResult(start, serviceName, success()),
+				secondCommandCallSucceeds(serviceName, start, "[{\"State\": {\"Running\": true}}]"),
+			},
+
+			// restart command test cases
+
+			{
+				"Restart: first executor call fails",
+				restart,
+				createResult(restart, serviceName, failure(messageExecutorCommandFailed(failedRestartPrefix, string([]byte(nil)), errorMessage))),
+				firstCommandCallFails(serviceName, restart),
+			},
+			{
+				"Restart: second executor call fails",
+				restart,
+				createResult(restart, serviceName, failure(messageExecutorInspectFailed(failedRestartPrefix, errorMessage))),
+				secondCommandCallFails(serviceName, restart),
+			},
+			{
+				"Restart: container not found in inspect result",
+				restart,
+				createResult(restart, serviceName, failure(messageExecutorInspectFailed(failedRestartPrefix, messageContainerNotFound(serviceName)))),
+				secondCommandCallSucceeds(serviceName, restart, "[]"),
+			},
+			{
+				"Restart: more than one container instance found in inspect result",
+				restart,
+				createResult(restart, serviceName, failure(messageExecutorInspectFailed(failedRestartPrefix, messageMoreThanOneContainerFound(serviceName)))),
+				secondCommandCallSucceeds(serviceName, restart, "[{\"State\": {\"Running\": false}}, {\"State\": {\"Running\": false}}]"),
+			},
+			{
+				"Restart: inspect result says service is not running as expected",
+				restart,
+				createResult(restart, serviceName, failure(messageServiceIsNotRunningButShouldBe(failedRestartPrefix))),
+				secondCommandCallSucceeds(serviceName, restart, "[{\"State\": {\"Running\": false}}]"),
+			},
+			{
+				"Restart: isContainerRunning json.Decode failure",
+				restart,
+				createResult(restart, serviceName, failure(messageExecutorInspectFailed(failedRestartPrefix, "EOF"))),
+				secondCommandCallSucceeds(serviceName, restart, ""),
+			},
+			{
+				"Restart: success",
+				restart,
+				createResult(restart, serviceName, success()),
+				secondCommandCallSucceeds(serviceName, restart, "[{\"State\": {\"Running\": true}}]"),
+			},
+
+			// stop command test cases
+
+			{
+				"Stop: first executor call fails",
+				stop,
+				createResult(stop, serviceName, failure(messageExecutorCommandFailed(failedStopPrefix, string([]byte(nil)), errorMessage))),
+				firstCommandCallFails(serviceName, stop),
+			},
+			{
+				"Stop: second executor call fails",
+				stop,
+				createResult(stop, serviceName, failure(messageExecutorInspectFailed(failedStopPrefix, errorMessage))),
+				secondCommandCallFails(serviceName, stop),
+			},
+			{
+				"Stop: container not found in inspect result",
+				stop,
+				createResult(stop, serviceName, failure(messageExecutorInspectFailed(failedStopPrefix, messageContainerNotFound(serviceName)))),
+				secondCommandCallSucceeds(serviceName, stop, "[]"),
+			},
+			{
+				"Stop: more than one container instance found in inspect result",
+				stop,
+				createResult(stop, serviceName, failure(messageExecutorInspectFailed(failedStopPrefix, messageMoreThanOneContainerFound(serviceName)))),
+				secondCommandCallSucceeds(serviceName, stop, "[{\"State\": {\"Running\": true}}, {\"State\": {\"Running\": true}}]"),
+			},
+			{
+				"Stop: inspect result says service is not running as expected",
+				stop,
+				createResult(stop, serviceName, failure(messageServiceIsRunningButShouldNotBe(failedStopPrefix))),
+				secondCommandCallSucceeds(serviceName, stop, "[{\"State\": {\"Running\": true}}]"),
+			},
+			{
+				"Stop: isContainerRunning json.Decode failure",
+				stop,
+				createResult(stop, serviceName, failure(messageExecutorInspectFailed(failedStopPrefix, "EOF"))),
+				secondCommandCallSucceeds(serviceName, stop, ""),
+			},
+			{
+				"Stop: success",
+				stop,
+				createResult(stop, serviceName, success()),
+				secondCommandCallSucceeds(serviceName, stop, "[{\"State\": {\"Running\": false}}]"),
+			},
+
+			// metrics command test case
+
+			{
+				"Metrics: failure",
+				metrics,
+				createResult(metrics, serviceName, failure(errorMessage)),
+				firstMetricsCallFails(serviceName, metrics),
+			},
+			{
+				"Metrics: success",
+				metrics,
+				createResult(metrics, serviceName, metricsSuccess(metricsSuccessResult)),
+				firstMetricsCallSucceeds(serviceName, metrics, metricsSuccessResult),
+			},
+
+			// invalid operation test case
+
+			{
+				"operation not supported by executor",
+				invalidOperation,
+				createResult(invalidOperation, serviceName, failure(messageExecutorOperationNotSupported())),
+				[]executorStubCall{},
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				executor := newExecutor(test.executorCalls)
+
+				result := Execute(executeArguments(serviceName, test.operation), executor.commandExecutor)
+
+				if assert.Equal(t, len(test.executorCalls), executor.Called) {
+					for key, executorCall := range test.executorCalls {
+						assertArgsAreEqual(t, executorCall.expectedArgs, executor.capturedArgs[key])
+					}
+				}
+				assert.Equal(t, test.expectedResult, result)
+			})
+		}
+	}
+}
+
+func TestUnknownService(t *testing.T) {
+	const unknownServiceName = "unknownServiceName"
+	executor := newExecutor([]executorStubCall{})
+
+	result := Execute(executeArguments(unknownServiceName, ""), executor.commandExecutor)
+
+	assert.Equal(t, 0, executor.Called)
+	assert.Equal(t, createResult("", unknownServiceName, failure(messageSpecifiedServiceIsUnknown())), result)
+}
+
+func TestMissingArguments(t *testing.T) {
+	missingArguments := []string{executableName}
+	executor := newExecutor([]executorStubCall{})
+
+	result := Execute(missingArguments, executor.commandExecutor)
+
+	assert.Equal(t, 0, executor.Called)
+	assert.Equal(t, createResult("", "", failure(messageMissingArguments(executableName))), result)
 }

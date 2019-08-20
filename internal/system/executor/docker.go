@@ -15,124 +15,55 @@
 package executor
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
+	"github.com/edgexfoundry/edgex-go/internal/system/agent"
 )
 
 const (
-	START   = "start"
-	STOP    = "stop"
-	RESTART = "restart"
-	METRICS = "metrics"
-	UNKNOWN = "unknown"
-	INSPECT = "inspect"
+	start   = "start"
+	stop    = "stop"
+	restart = "restart"
+	metrics = "metrics"
 
-	FAILED_START_PREFIX   = "Error starting service"
-	FAILED_RESTART_PREFIX = "Error restarting service"
-	FAILED_STOP_PREFIX    = "Error stopping service"
+	failedStartPrefix   = "Error starting service"
+	failedRestartPrefix = "Error restarting service"
+	failedStopPrefix    = "Error stopping service"
 )
 
 type CommandExecutor func(arg ...string) ([]byte, error)
 
-func Execute(operation string, service string, executor CommandExecutor) ([]byte, error) {
-	switch operation {
-	case START:
-		return nil, executeACommand(operation, service, executor, FAILED_START_PREFIX, true)
-	case RESTART:
-		return nil, executeACommand(operation, service, executor, FAILED_RESTART_PREFIX, true)
-	case STOP:
-		return nil, executeACommand(operation, service, executor, FAILED_STOP_PREFIX, false)
-	case METRICS:
-		return executor(
-			"stats",
-			service,
-			"--no-stream",
-			"--format",
-			"{\"cpu_perc\":\"{{ .CPUPerc }}\",\"mem_usage\":\"{{ .MemUsage }}\",\"mem_perc\":\"{{ .MemPerc }}\",\"net_io\":\"{{ .NetIO }}\",\"block_io\":\"{{ .BlockIO }}\",\"pids\":\"{{ .PIDs }}\"}")
-	default:
-		return nil, fmt.Errorf("operation not supported with specified executor")
-	}
+func messageExecutorOperationNotSupported() string {
+	return "operation not supported by executor"
 }
 
-func executorCommandFailedMessage(operationPrefix string, result string, errorMessage string) string {
-	return fmt.Sprintf("%s: %s (%s)", operationPrefix, errorMessage, result)
+func messageSpecifiedServiceIsUnknown() string {
+	return "Specified service is unknown"
 }
 
-func executorCommandNotSupportedMessage() string {
-	return fmt.Sprintf("operation not supported with specified executor")
+func messageMissingArguments(executableName string) string {
+	return fmt.Sprintf("Usage: ./%s <service> <operation>\t\tStart app with requested {service} and {operation}\n", executableName)
 }
 
-func executorInspectFailedMessage(operationPrefix string, errorMessage string) string {
-	return fmt.Sprintf("%s: %s", operationPrefix, errorMessage)
-}
+func Execute(args []string, executor CommandExecutor) string {
+	if len(args) > 2 {
+		service := args[1]
+		if agent.IsKnownServiceKey(service) {
+			operation := args[2]
 
-func serviceIsNotRunningButShouldBeMessage(operationPrefix string) string {
-	return fmt.Sprintf("%s: service is not running but should be", operationPrefix)
-}
-
-func serviceIsRunningButShouldNotBeMessage(operationPrefix string) string {
-	return fmt.Sprintf("%s: service is running but shouldn't be", operationPrefix)
-}
-
-func executeACommand(
-	operation string,
-	service string,
-	executor CommandExecutor,
-	operationPrefix string,
-	shouldBeRunning bool) error {
-
-	if result, err := executor(operation, service); err != nil {
-		return errors.New(executorCommandFailedMessage(operationPrefix, string(result), err.Error()))
-	}
-
-	isRunning, err := isContainerRunning(service, executor)
-	switch {
-	case err != nil:
-		return errors.New(executorInspectFailedMessage(operationPrefix, err.Error()))
-	case isRunning != shouldBeRunning:
-		if isRunning {
-			return errors.New(serviceIsRunningButShouldNotBeMessage(operationPrefix))
+			switch operation {
+			case start:
+				return createResult(operation, service, executeACommand(operation, service, executor, failedStartPrefix, true))
+			case restart:
+				return createResult(operation, service, executeACommand(operation, service, executor, failedRestartPrefix, true))
+			case stop:
+				return createResult(operation, service, executeACommand(operation, service, executor, failedStopPrefix, false))
+			case metrics:
+				return createResult(operation, service, gatherMetrics(service, executor))
+			default:
+				return createResult(operation, service, failure(messageExecutorOperationNotSupported()))
+			}
 		}
-		return errors.New(serviceIsNotRunningButShouldBeMessage(operationPrefix))
-	default:
-		return nil
+		return createResult("", service, failure(messageSpecifiedServiceIsUnknown()))
 	}
-}
-
-func containerNotFoundMessage(serviceName string) string {
-	return fmt.Sprintf("container %s not found", serviceName)
-}
-
-func moreThanOneContainerFoundMessage(serviceName string) string {
-	return fmt.Sprintf("multiple containers found with name %s", serviceName)
-}
-
-func isContainerRunning(service string, executor CommandExecutor) (bool, error) {
-	// check the status of the container using the json format - include all
-	// containers as the container we want to check may be Exited
-	stringOutput, err := executor(INSPECT, service)
-	if err != nil {
-		return false, err
-	}
-
-	var containerStatus []struct {
-		State struct {
-			Running bool
-		}
-	}
-	jsonOutput := json.NewDecoder(strings.NewReader(string(stringOutput)))
-	if err = jsonOutput.Decode(&containerStatus); err != nil {
-		return false, err
-	}
-
-	switch {
-	case len(containerStatus) < 1:
-		return false, errors.New(containerNotFoundMessage(service))
-	case len(containerStatus) > 1:
-		return false, errors.New(moreThanOneContainerFoundMessage(service))
-	default:
-		return containerStatus[0].State.Running, nil
-	}
+	return createResult("", "", failure(messageMissingArguments(args[0])))
 }

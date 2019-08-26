@@ -23,7 +23,7 @@ import (
 const inspect = "inspect"
 
 func messageExecutorCommandFailed(operationPrefix string, result string, errorMessage string) string {
-	return fmt.Sprintf("%s: %s (%s)", operationPrefix, errorMessage, result)
+	return fmt.Sprintf("%s: %s (%s)", operationPrefix, errorMessage, strings.ReplaceAll(result, "\n", " "))
 }
 
 func messageExecutorInspectFailed(operationPrefix string, errorMessage string) string {
@@ -49,7 +49,7 @@ func messageMoreThanOneContainerFound(serviceName string) string {
 func isContainerRunning(service string, executor CommandExecutor) (bool, string) {
 	// check the status of the container using the json format - include all
 	// containers as the container we want to check may be Exited
-	stringOutput, err := executor(service, inspect)
+	stringOutput, err := executor(inspect, service)
 	if err != nil {
 		return false, err.Error()
 	}
@@ -81,19 +81,19 @@ func executeACommand(
 	operationPrefix string,
 	shouldBeRunning bool) string {
 
-	if output, err := executor(service, operation); err != nil {
-		return failure(messageExecutorCommandFailed(operationPrefix, string(output), err.Error()))
+	if output, err := executor(operation, service); err != nil {
+		return Failure(messageExecutorCommandFailed(operationPrefix, string(output), err.Error()))
 	}
 
 	isRunning, errorMessage := isContainerRunning(service, executor)
 	switch {
 	case len(errorMessage) > 0:
-		return failure(messageExecutorInspectFailed(operationPrefix, errorMessage))
+		return Failure(messageExecutorInspectFailed(operationPrefix, errorMessage))
 	case isRunning != shouldBeRunning:
 		if isRunning {
-			return failure(messageServiceIsRunningButShouldNotBe(operationPrefix))
+			return Failure(messageServiceIsRunningButShouldNotBe(operationPrefix))
 		}
-		return failure(messageServiceIsNotRunningButShouldBe(operationPrefix))
+		return Failure(messageServiceIsNotRunningButShouldBe(operationPrefix))
 	default:
 		return success()
 	}

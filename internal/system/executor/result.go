@@ -14,7 +14,14 @@
 
 package executor
 
-func failure(errorMessage string) string {
+const (
+	metricsResult               = "result"
+	metricsResultCpuUsedPercent = "cpuUsedPercent"
+	metricsResultMemoryUsed     = "memoryUsed"
+	metricsResultRaw            = "raw"
+)
+
+func Failure(errorMessage string) string {
 	return "\"success\":false,\"errorMessage\":\"" + errorMessage + "\""
 }
 
@@ -22,6 +29,15 @@ func success() string {
 	return "\"success\":true"
 }
 
-func createResult(operation string, service string, result string) string {
-	return "{\"operation\":\"" + operation + "\",\"service\":\"" + service + "\"," + result + "}"
+func MetricsSuccess(cpuUsedPercent string, memoryUsed string, raw string) string {
+	return success() + "," +
+		"\"" + metricsResult + "\":{" +
+		"\"" + metricsResultCpuUsedPercent + "\":" + cpuUsedPercent + "," +
+		"\"" + metricsResultMemoryUsed + "\":" + memoryUsed + "," +
+		"\"" + metricsResultRaw + "\":" + raw +
+		"}"
+}
+
+func CreateResult(operation string, service string, executorType string, result string) string {
+	return "{\"operation\":\"" + operation + "\",\"service\":\"" + service + "\",\"executor\":\"" + executorType + "\"," + result + "}"
 }

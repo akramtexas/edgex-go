@@ -14,7 +14,12 @@
 
 package executor
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
+
+const separator = ";"
 
 func metricsExecutorCommands(serviceName string) []string {
 	return []string{
@@ -22,18 +27,47 @@ func metricsExecutorCommands(serviceName string) []string {
 		serviceName,
 		"--no-stream",
 		"--format",
-		"{\"cpu_perc\":\"{{ .CPUPerc }}\",\"mem_usage\":\"{{ .MemUsage }}\",\"mem_perc\":\"{{ .MemPerc }}\",\"net_io\":\"{{ .NetIO }}\",\"block_io\":\"{{ .BlockIO }}\",\"pids\":\"{{ .PIDs }}\"}",
+		"{{ .CPUPerc }}" + separator +
+			"{{ .MemUsage }}" + separator +
+			"{\"cpu_perc\":\"{{ .CPUPerc }}\",\"mem_usage\":\"{{ .MemUsage }}\",\"mem_perc\":\"{{ .MemPerc }}\",\"net_io\":\"{{ .NetIO }}\",\"block_io\":\"{{ .BlockIO }}\",\"pids\":\"{{ .PIDs }}\"}",
 	}
 }
 
-func metricsSuccess(result string) string {
-	return success() + ",\"result\":" + result
+func dockerMemoryToStringInt(value string) string {
+	const (
+		kb = 1024
+		mb = kb * 1024
+		gb = mb * 1024
+	)
+	var memory float64
+	var scale string
+	n, err := fmt.Sscanf(value, "%f%s", &memory, &scale)
+	if err != nil || n != 2 {
+		return "-1"
+	}
+	switch scale {
+	case "KiB":
+		memory *= kb
+	case "MiB":
+		memory *= mb
+	case "GiB":
+		memory *= gb
+	}
+	return fmt.Sprintf("%.0f", memory)
+}
+
+func resultToFields(result string) (cpuUsedPercent, memoryUsed, raw string) {
+	resultFields := strings.Split(strings.TrimRight(result, "\n"), separator)
+	cpuUsedPercent = strings.TrimRight(resultFields[0], "%")
+	memoryUsed = dockerMemoryToStringInt(strings.Split(resultFields[1], " ")[0])
+	raw = resultFields[2]
+	return
 }
 
 func gatherMetrics(serviceName string, executor CommandExecutor) string {
-	output, err := executor(metricsExecutorCommands(serviceName)...)
+	result, err := executor(metricsExecutorCommands(serviceName)...)
 	if err != nil {
-		return failure(err.Error())
+		return Failure(err.Error())
 	}
-	return metricsSuccess(strings.TrimRight(string(output), "\n"))
+	return MetricsSuccess(resultToFields(string(result)))
 }

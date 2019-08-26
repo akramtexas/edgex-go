@@ -16,15 +16,15 @@ package executor
 
 import (
 	"fmt"
-	"github.com/edgexfoundry/edgex-go/internal/system/agent"
 )
 
 const (
-	start   = "start"
-	stop    = "stop"
-	restart = "restart"
-	metrics = "metrics"
+	Start   = "start"
+	Stop    = "stop"
+	Restart = "restart"
+	Metrics = "metrics"
 
+	executorType        = "docker"
 	failedStartPrefix   = "Error starting service"
 	failedRestartPrefix = "Error restarting service"
 	failedStopPrefix    = "Error stopping service"
@@ -36,34 +36,29 @@ func messageExecutorOperationNotSupported() string {
 	return "operation not supported by executor"
 }
 
-func messageSpecifiedServiceIsUnknown() string {
-	return "Specified service is unknown"
-}
-
-func messageMissingArguments(executableName string) string {
-	return fmt.Sprintf("Usage: ./%s <service> <operation>\t\tStart app with requested {service} and {operation}\n", executableName)
+func messageMissingArguments() string {
+	return fmt.Sprintf("missing <service> and <operation> command line arguments")
 }
 
 func Execute(args []string, executor CommandExecutor) string {
 	if len(args) > 2 {
 		service := args[1]
-		if agent.IsKnownServiceKey(service) {
-			operation := args[2]
+		operation := args[2]
 
-			switch operation {
-			case start:
-				return createResult(operation, service, executeACommand(operation, service, executor, failedStartPrefix, true))
-			case restart:
-				return createResult(operation, service, executeACommand(operation, service, executor, failedRestartPrefix, true))
-			case stop:
-				return createResult(operation, service, executeACommand(operation, service, executor, failedStopPrefix, false))
-			case metrics:
-				return createResult(operation, service, gatherMetrics(service, executor))
-			default:
-				return createResult(operation, service, failure(messageExecutorOperationNotSupported()))
-			}
+		var result string
+		switch operation {
+		case Start:
+			result = executeACommand(operation, service, executor, failedStartPrefix, true)
+		case Restart:
+			result = executeACommand(operation, service, executor, failedRestartPrefix, true)
+		case Stop:
+			result = executeACommand(operation, service, executor, failedStopPrefix, false)
+		case Metrics:
+			result = gatherMetrics(service, executor)
+		default:
+			result = Failure(messageExecutorOperationNotSupported())
 		}
-		return createResult("", service, failure(messageSpecifiedServiceIsUnknown()))
+		return CreateResult(operation, service, executorType, result)
 	}
-	return createResult("", "", failure(messageMissingArguments(args[0])))
+	return CreateResult("", "", executorType, Failure(messageMissingArguments()))
 }

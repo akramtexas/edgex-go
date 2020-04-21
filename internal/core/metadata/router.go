@@ -679,7 +679,7 @@ func loadDeviceServiceRoutes(b *mux.Router, dic *di.Container) {
 				metadataContainer.ConfigurationFrom(dic.Get))
 		}).Methods(http.MethodDelete)
 	dsn.HandleFunc(
-		"/{"+NAME+"}/"+OPSTATE+"/{"+OPSTATE+"}",
+		"/{"+NAME+"}",
 		func(w http.ResponseWriter, r *http.Request) {
 			restUpdateServiceOpStateByName(
 				w,
@@ -751,7 +751,7 @@ func loadDeviceServiceRoutes(b *mux.Router, dic *di.Container) {
 		}).Methods(http.MethodDelete)
 
 	ds.HandleFunc(
-		"/{"+ID+"}/"+OPSTATE+"/{"+OPSTATE+"}",
+		"/{"+ID+"}",
 		func(w http.ResponseWriter, r *http.Request) {
 			restUpdateServiceOpStateById(
 				w,

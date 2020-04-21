@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -554,19 +553,29 @@ func restUpdateServiceOpStateById(
 	dbClient interfaces.DBClient,
 	errorHandler errorconcept.ErrorHandler) {
 
-	vars := mux.Vars(r)
-	var id = vars[ID]
-	var os = vars[OPSTATE]
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
 
-	// Check the OpState
-	newOs, f := models.GetOperatingState(os)
-	if !f {
-		err := errors.New("Invalid State: " + os + " Must be 'ENABLED' or 'DISABLED'")
-		errorHandler.Handle(w, err, errorconcept.DeviceService.InvalidState)
+	vars := mux.Vars(r)
+	n, err := url.QueryUnescape(vars[ID])
+	if err != nil {
+		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
 		return
 	}
 
-	op := device_service.NewUpdateOpStateByIdExecutor(id, newOs, dbClient)
+	os := vars[OPSTATE]
+	operatingState := models.OperatingState(os)
+
+	// Validate the operating state
+	_, err = operatingState.Validate()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
+		return
+	}
+	// Update the operating state
+	op := device_service.NewUpdateOpStateByIdExecutor(n, operatingState, dbClient)
 	if err := op.Execute(); err != nil {
 		errorHandler.HandleOneVariant(
 			w,
@@ -575,6 +584,7 @@ func restUpdateServiceOpStateById(
 			errorconcept.Default.InternalServerError)
 		return
 	}
+
 	w.Header().Set(clients.ContentType, clients.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("true"))
@@ -586,23 +596,30 @@ func restUpdateServiceOpStateByName(
 	dbClient interfaces.DBClient,
 	errorHandler errorconcept.ErrorHandler) {
 
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
+
 	vars := mux.Vars(r)
 	n, err := url.QueryUnescape(vars[NAME])
 	if err != nil {
 		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
 		return
 	}
-	var os = vars[OPSTATE]
 
-	// Check the OpState
-	newOs, f := models.GetOperatingState(os)
-	if !f {
-		err = errors.New("Invalid State: " + os + " Must be 'ENABLED' or 'DISABLED'")
-		errorHandler.Handle(w, err, errorconcept.DeviceService.InvalidState)
+	os := vars[OPSTATE]
+	operatingState := models.OperatingState(os)
+
+	// Validate the operating state
+	_, err = operatingState.Validate()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
 		return
 	}
 
-	op := device_service.NewUpdateOpStateByNameExecutor(n, newOs, dbClient)
+	// Update the operating state
+	op := device_service.NewUpdateOpStateByNameExecutor(n, operatingState, dbClient)
 	if err := op.Execute(); err != nil {
 		errorHandler.HandleOneVariant(
 			w,
@@ -611,6 +628,7 @@ func restUpdateServiceOpStateByName(
 			errorconcept.Default.InternalServerError)
 		return
 	}
+
 	w.Header().Set(clients.ContentType, clients.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("true"))
@@ -622,19 +640,30 @@ func restUpdateServiceAdminStateById(
 	dbClient interfaces.DBClient,
 	errorHandler errorconcept.ErrorHandler) {
 
-	vars := mux.Vars(r)
-	var id = vars[ID]
-	var as = vars[ADMINSTATE]
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
 
-	// Check the admin state
-	newAs, f := models.GetAdminState(as)
-	if !f {
-		err := errors.New("Invalid state: " + as + " Must be 'LOCKED' or 'UNLOCKED'")
-		errorHandler.Handle(w, err, errorconcept.DeviceService.InvalidState)
+	vars := mux.Vars(r)
+	n, err := url.QueryUnescape(vars[ID])
+	if err != nil {
+		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
 		return
 	}
 
-	op := device_service.NewUpdateAdminStateByIdExecutor(id, newAs, dbClient)
+	as := vars[ADMINSTATE]
+	adminState := models.AdminState(as)
+
+	// Validate the admin state
+	_, err = adminState.Validate()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
+		return
+	}
+
+	// Update the admin state
+	op := device_service.NewUpdateAdminStateByIdExecutor(n, adminState, dbClient)
 	if err := op.Execute(); err != nil {
 		errorHandler.HandleOneVariant(
 			w,
@@ -643,6 +672,7 @@ func restUpdateServiceAdminStateById(
 			errorconcept.Default.InternalServerError)
 		return
 	}
+
 	w.Header().Set(clients.ContentType, clients.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("true"))
@@ -654,23 +684,30 @@ func restUpdateServiceAdminStateByName(
 	dbClient interfaces.DBClient,
 	errorHandler errorconcept.ErrorHandler) {
 
+	if r.Body != nil {
+		defer r.Body.Close()
+	}
+
 	vars := mux.Vars(r)
 	n, err := url.QueryUnescape(vars[NAME])
 	if err != nil {
 		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
 		return
 	}
-	var as = vars[ADMINSTATE]
 
-	// Check the admin state
-	newAs, f := models.GetAdminState(as)
-	if !f {
-		err := errors.New("Invalid state: " + as + " Must be 'LOCKED' or 'UNLOCKED'")
-		errorHandler.Handle(w, err, errorconcept.DeviceService.InvalidState)
+	as := vars[ADMINSTATE]
+	adminState := models.AdminState(as)
+
+	// Validate the admin state
+	_, err = adminState.Validate()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		errorHandler.Handle(w, err, errorconcept.Common.InvalidRequest_StatusBadRequest)
 		return
 	}
 
-	op := device_service.NewUpdateAdminStateByNameExecutor(n, newAs, dbClient)
+	// Update the admin state
+	op := device_service.NewUpdateAdminStateByNameExecutor(n, adminState, dbClient)
 	if err := op.Execute(); err != nil {
 		errorHandler.HandleOneVariant(
 			w,
@@ -679,6 +716,7 @@ func restUpdateServiceAdminStateByName(
 			errorconcept.Default.InternalServerError)
 		return
 	}
+
 	w.Header().Set(clients.ContentType, clients.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("true"))

@@ -45,8 +45,8 @@ var testDeviceServiceId = uuid.New().String()
 var testDeviceServiceName = "test service"
 var testDeviceService = contract.DeviceService{Id: testDeviceServiceId, Name: testDeviceServiceName}
 var testDeviceServices = []contract.DeviceService{testDeviceService}
-var testOperatingState, _ = contract.GetOperatingState(contract.Enabled)
-var testAdminState, _ = contract.GetAdminState(contract.Unlocked)
+var testOperatingState = contract.Enabled
+var testAdminState = contract.Unlocked
 var testError = errors.New("some error")
 var testDeviceServiceLastUpdated = contract.DeviceService{
 	Id:           testDeviceServiceLastUpdatedId,
@@ -335,7 +335,7 @@ func TestGetServiceByAddressableId(t *testing.T) {
 
 func TestUpdateOpStateById(t *testing.T) {
 	operatingStateEnabled := testDeviceService
-	operatingStateEnabled.OperatingState = testOperatingState
+	operatingStateEnabled.OperatingState = contract.OperatingState(testOperatingState)
 
 	tests := []struct {
 		name           string
@@ -394,7 +394,7 @@ func TestUpdateOpStateById(t *testing.T) {
 
 func TestUpdateOpStateByName(t *testing.T) {
 	operatingStateEnabled := testDeviceService
-	operatingStateEnabled.OperatingState = testOperatingState
+	operatingStateEnabled.OperatingState = contract.OperatingState(testOperatingState)
 
 	tests := []struct {
 		name           string
@@ -462,7 +462,7 @@ func TestUpdateOpStateByName(t *testing.T) {
 
 func TestUpdateAdminStateById(t *testing.T) {
 	adminStateEnabled := testDeviceService
-	adminStateEnabled.AdminState = testAdminState
+	adminStateEnabled.AdminState = contract.AdminState(testAdminState)
 
 	tests := []struct {
 		name           string
@@ -525,7 +525,7 @@ func TestUpdateAdminStateById(t *testing.T) {
 
 func TestUpdateAdminStateByName(t *testing.T) {
 	adminStateEnabled := testDeviceService
-	adminStateEnabled.AdminState = testAdminState
+	adminStateEnabled.AdminState = contract.AdminState(testAdminState)
 
 	tests := []struct {
 		name           string

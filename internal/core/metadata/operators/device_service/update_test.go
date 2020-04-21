@@ -26,7 +26,7 @@ import (
 
 func TestUpdateOperatingStateByIdExecutor(t *testing.T) {
 	operatingStateEnabled := testDeviceService
-	operatingStateEnabled.OperatingState = testOperatingState
+	operatingStateEnabled.OperatingState = contract.OperatingState(testOperatingState)
 
 	tests := []struct {
 		name             string
@@ -68,7 +68,7 @@ func TestUpdateOperatingStateByIdExecutor(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			op := NewUpdateOpStateByIdExecutor(testDeviceServiceId, testOperatingState, test.mockUpdater)
+			op := NewUpdateOpStateByIdExecutor(testDeviceServiceId, contract.OperatingState(testOperatingState), test.mockUpdater)
 			err := op.Execute()
 			if test.expectedError && err == nil {
 				t.Error("Expected an error")
@@ -91,7 +91,7 @@ func TestUpdateOperatingStateByIdExecutor(t *testing.T) {
 
 func TestUpdateOperatingStateByNameExecutor(t *testing.T) {
 	operatingStateEnabled := testDeviceService
-	operatingStateEnabled.OperatingState = testOperatingState
+	operatingStateEnabled.OperatingState = contract.OperatingState(testOperatingState)
 
 	tests := []struct {
 		name             string
@@ -133,7 +133,7 @@ func TestUpdateOperatingStateByNameExecutor(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			op := NewUpdateOpStateByNameExecutor(testDeviceServiceName, testOperatingState, test.mockUpdater)
+			op := NewUpdateOpStateByNameExecutor(testDeviceServiceName, contract.OperatingState(testOperatingState), test.mockUpdater)
 			err := op.Execute()
 			if test.expectedError && err == nil {
 				t.Error("Expected an error")
@@ -156,7 +156,7 @@ func TestUpdateOperatingStateByNameExecutor(t *testing.T) {
 
 func TestUpdateAdminStateByIdExecutor(t *testing.T) {
 	adminStateUnlocked := testDeviceService
-	adminStateUnlocked.AdminState = testAdminState
+	adminStateUnlocked.AdminState = contract.AdminState(testAdminState)
 
 	tests := []struct {
 		name             string
@@ -198,7 +198,7 @@ func TestUpdateAdminStateByIdExecutor(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			op := NewUpdateAdminStateByIdExecutor(testDeviceServiceId, testAdminState, test.mockUpdater)
+			op := NewUpdateAdminStateByIdExecutor(testDeviceServiceId, contract.AdminState(testAdminState), test.mockUpdater)
 			err := op.Execute()
 			if test.expectedError && err == nil {
 				t.Error("Expected an error")
@@ -221,7 +221,7 @@ func TestUpdateAdminStateByIdExecutor(t *testing.T) {
 
 func TestUpdateAdminStateByNameExecutor(t *testing.T) {
 	adminStateUnlocked := testDeviceService
-	adminStateUnlocked.AdminState = testAdminState
+	adminStateUnlocked.AdminState = contract.AdminState(testAdminState)
 
 	tests := []struct {
 		name             string
@@ -263,7 +263,7 @@ func TestUpdateAdminStateByNameExecutor(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			op := NewUpdateAdminStateByNameExecutor(testDeviceServiceName, testAdminState, test.mockUpdater)
+			op := NewUpdateAdminStateByNameExecutor(testDeviceServiceName, contract.AdminState(testAdminState), test.mockUpdater)
 			err := op.Execute()
 			if test.expectedError && err == nil {
 				t.Error("Expected an error")
@@ -294,5 +294,5 @@ func createMockUpdater(outlines []mockOutline) DeviceServiceUpdater {
 	return &dbMock
 }
 
-var testAdminState, _ = contract.GetAdminState(contract.Unlocked)
-var testOperatingState, _ = contract.GetOperatingState(contract.Enabled)
+var testAdminState = contract.Unlocked
+var testOperatingState = contract.Enabled
